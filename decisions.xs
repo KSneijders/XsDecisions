@@ -157,10 +157,11 @@ int decisionGetChoiceIndex(int answerArray = -1) {
 }
 
 /**
- * Create a new question without choices. Add choices using `decisionSetChoice(...)`.
+ * Create a new question without choices. Add choices using `decisionAddChoice(...)`.
  * Returns the question ID which can be passed to `decisionAsk(...)`.
  *
  * The callback is the name of a function `void name(int answerArray = -1)` which is called when any choice is made.
+ *
  * The callback function MUST HAVE a single int argument, no more, no less!
  */
 int decisionCreate(string question = "", string callback = "") {
@@ -190,13 +191,14 @@ int decisionCreate(string question = "", string callback = "") {
  *
  * The callback is the name of a function `void name(int answerArray = -1)` which is called only when this choice is made.
  * If the question also has a callback, the question callback is called first.
+ *
  * The callback functions MUST HAVE a single int argument, no more, no less!
  *
  * Note: Both questionId and choice are required arguments
  *
  * @allow_discard
  */
-int decisionSetChoice(int questionId = -1, string choice = "", string callback = "") {
+int decisionAddChoice(int questionId = -1, string choice = "", string callback = "") {
     if (questionId == -1 || choice == "") {
         return (-1);
     }
@@ -225,6 +227,8 @@ int decisionSetChoice(int questionId = -1, string choice = "", string callback =
  * Choices are separated by `|`. A choice callback can be added using `:::`, for example: "Yes:::onYes|No:::onNo"
  * The callback is called when any choice is made (See `decisionCreate(...)`)
  *
+ * The callback functions MUST HAVE a single int argument, no more, no less!
+ *
  * Note: Choices cannot contain `|` or `:::`
  */
 int decisionCreateWithChoices(string question = "", string pipeSeparatedChoices = "", string callback = "") {
@@ -244,7 +248,7 @@ int decisionCreateWithChoices(string question = "", string pipeSeparatedChoices 
             choiceCallback = xsArrayGetString(choiceSegments, 1);
         }
 
-        decisionSetChoice(questionId, choice, choiceCallback);
+        decisionAddChoice(questionId, choice, choiceCallback);
     }
 
     return (questionId);
