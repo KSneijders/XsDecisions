@@ -1,9 +1,28 @@
-int arrGroupChoices = -1;
-int arrGroupChoiceCallbacks = -1;
-int arrGroupQuestions = -1;
-int arrGroupCallbacks = -1;
+/*
+ * ##########################################################
+ *    __  __      ____            _     _
+ *    \ \/ /___  |  _ \  ___  ___(_)___(_) ___  _ __  ___
+ *     \  // __| | | | |/ _ \/ __| / __| |/ _ \| '_ \/ __|
+ *     /  \\__ \ | |_| |  __/ (__| \__ \ | (_) | | | \__ \
+ *    /_/\_\___/ |____/ \___|\___|_|___/_|\___/|_| |_|___/
+ *
+ * ##########################################################
+ *
+ * Created by MrKirby -- https://github.com/KSneijders/XsDecisions
+ * Version: 1.0.0 (2026-11-14)
+ *
+ * ######################## Credits #########################
+ * XS-Check by Alian -- https://github.com/Divy1211/xs-check
+ * Ascii art by: https://patorjk.com/software/taag [Standard]
+ * ##########################################################
+ */
 
-int arrActiveDecisionsToGroupMap = -1;
+int arrQuestionChoices = -1;
+int arrQuestionChoiceCallbacks = -1;
+int arrQuestionTexts = -1;
+int arrQuestionCallbacks = -1;
+
+int arrActiveDecisionsToQuestionMap = -1;
 int arrActiveDecisionsToPlayerMap = -1;
 int arrActiveDecisionsToAnswerArrayMap = -1;
 int cMarkForClear = 999999996;
@@ -11,24 +30,28 @@ int cReadyForDelete = 999999999;
 
 int cChoicePending = 0;
 
-void __initializeDecisions() {
-    if (arrActiveDecisionsToGroupMap != -1) {
+/* #############################################################
+######################### INTERNAL API #########################
+############################################################# */
+
+void initializeDecisions__decisions() {
+    if (arrActiveDecisionsToQuestionMap != -1) {
         return;
     }
 
     int activeDecisionsSupportCount = 200;  /* Equal to the number of decisions visible at a time (8 players) */
-    arrActiveDecisionsToGroupMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
+    arrActiveDecisionsToQuestionMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
     arrActiveDecisionsToPlayerMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
     arrActiveDecisionsToAnswerArrayMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
 
     int questionSupportCount = 5;  /* Is expanded automatically */
-    arrGroupQuestions = xsArrayCreateString(questionSupportCount, "");
-    arrGroupCallbacks = xsArrayCreateString(questionSupportCount, "");
-    arrGroupChoices = xsArrayCreateInt(questionSupportCount, -1);
-    arrGroupChoiceCallbacks = xsArrayCreateInt(questionSupportCount, -1);
+    arrQuestionTexts = xsArrayCreateString(questionSupportCount, "");
+    arrQuestionCallbacks = xsArrayCreateString(questionSupportCount, "");
+    arrQuestionChoices = xsArrayCreateInt(questionSupportCount, -1);
+    arrQuestionChoiceCallbacks = xsArrayCreateInt(questionSupportCount, -1);
 }
 
-int findIndexString(int arrayId = -1, string match = "") {
+mutable int findIndexString__decisions(int arrayId = -1, string match = "") {
     for(i = 0; < xsArrayGetSize(arrayId)) {
         if (xsArrayGetString(arrayId, i) == match) {
             return (i);
@@ -38,7 +61,7 @@ int findIndexString(int arrayId = -1, string match = "") {
     return (-1);
 }
 
-int findIndexInt(int arrayId = -1, int match = -1) {
+mutable int findIndexInt__decisions(int arrayId = -1, int match = -1) {
     for(i = 0; < xsArrayGetSize(arrayId)) {
         if (xsArrayGetInt(arrayId, i) == match) {
             return (i);
@@ -48,7 +71,7 @@ int findIndexInt(int arrayId = -1, int match = -1) {
     return (-1);
 }
 
-void arrayResizeIntArrayWithDef(int arr = -1, int def = -1) {
+void arrayResizeIntArrayWithDef__decisions(int arr = -1, int def = -1) {
     int oldSize = xsArrayGetSize(arr);
 
     xsArrayResizeInt(arr, oldSize * 2);
@@ -57,7 +80,7 @@ void arrayResizeIntArrayWithDef(int arr = -1, int def = -1) {
     }
 }
 
-void arrayResizeStringArrayWithDef(int arr = -1, string def = "") {
+void arrayResizeStringArrayWithDef__decisions(int arr = -1, string def = "") {
     int oldSize = xsArrayGetSize(arr);
 
     xsArrayResizeString(arr, oldSize * 2);
@@ -66,7 +89,7 @@ void arrayResizeStringArrayWithDef(int arr = -1, string def = "") {
     }
 }
 
-void __callFunc(string callable = "", int arg = -1) {
+void callFunc__decisions(string callable = "", int arg = -1) {
     if (callable == "") {
         return;
     }
@@ -75,101 +98,142 @@ void __callFunc(string callable = "", int arg = -1) {
     xsAddRuntimeEvent("Random Map", callable, arg);
 }
 
-bool decisionWasMade(int arr = -1) {
-    if (arr == -1) {
+/* #############################################################
+########################## PUBLIC API ##########################
+############################################################# */
+
+/** Check if a decision has been answered. Can be called on the returning int from `decisionAsk(...)` */
+bool decisionWasMade(int answerArray = -1) {
+    if (answerArray == -1) {
         return (false);
     }
 
-    return (xsArrayGetInt(arr, 0) != -1 && xsArrayGetInt(arr, 1) != -1);
+    return (xsArrayGetInt(answerArray, 0) != -1 && xsArrayGetInt(answerArray, 1) != -1);
 }
 
-int decisionGetPlayer(int arr = -1) {
-    if (arr == -1) {
+/**
+ * Get the player to who this question was asked.
+ *
+ * Note: When decisionAsk(...) is called with player = -1 (Officially not supported by AoE2) this will return player = -1
+ */
+int decisionGetPlayer(int answerArray = -1) {
+    if (answerArray == -1) {
         return (-1);
     }
 
-    return (xsArrayGetInt(arr, 2));
+    return (xsArrayGetInt(answerArray, 2));
 }
 
-string decisionGetChoice(int arr = -1) {
-    if (arr == -1) {
+/** Get the choice that was made as string. The literal choice string is returned */
+string decisionGetChoice(int answerArray = -1) {
+    if (answerArray == -1) {
         return ("");
     }
 
-    int groupId = xsArrayGetInt(arr, 0);
-    int choiceIndex = xsArrayGetInt(arr, 1);
+    int questionId = xsArrayGetInt(answerArray, 0);
+    int choiceIndex = xsArrayGetInt(answerArray, 1);
 
-    int choicesArray = xsArrayGetInt(arrGroupChoices, groupId);
+    int choicesArray = xsArrayGetInt(arrQuestionChoices, questionId);
 
     return (xsArrayGetString(choicesArray, choiceIndex));
 }
 
-int decisionGetQuestion(int arr = -1) {
-    if (arr == -1) {
+/** Get the question ID returned from `decisionCreate(...)` functions */
+int decisionGetQuestion(int answerArray = -1) {
+    if (answerArray == -1) {
         return (-1);
     }
 
-    return (xsArrayGetInt(arr, 0));
+    return (xsArrayGetInt(answerArray, 0));
 }
 
-int decisionGetChoiceIndex(int arr = -1) {
-    if (arr == -1) {
+/** Get the choice that was made as int representing the index of the choice. Choices are 0-indexed */
+int decisionGetChoiceIndex(int answerArray = -1) {
+    if (answerArray == -1) {
         return (-1);
     }
 
-    return (xsArrayGetInt(arr, 1));
+    return (xsArrayGetInt(answerArray, 1));
 }
 
+/**
+ * Create a new question without choices. Add choices using `decisionSetChoice(...)`.
+ * Returns the question ID which can be passed to `decisionAsk(...)`.
+ *
+ * The callback is the name of a function `void name(int answerArray = -1)` which is called when any choice is made.
+ * The callback function MUST HAVE a single int argument, no more, no less!
+ */
 int decisionCreate(string question = "", string callback = "") {
-    __initializeDecisions();
+    initializeDecisions__decisions();
 
-    int index = findIndexInt(arrGroupChoices, -1);
-    if (index == -1) {
-        arrayResizeStringArrayWithDef(arrGroupQuestions);
-        arrayResizeStringArrayWithDef(arrGroupCallbacks);
-        arrayResizeIntArrayWithDef(arrGroupChoices);
-        arrayResizeIntArrayWithDef(arrGroupChoiceCallbacks);
+    int questionId = findIndexInt__decisions(arrQuestionChoices, -1);
+    if (questionId == -1) {
+        arrayResizeStringArrayWithDef__decisions(arrQuestionTexts);
+        arrayResizeStringArrayWithDef__decisions(arrQuestionCallbacks);
+        arrayResizeIntArrayWithDef__decisions(arrQuestionChoices);
+        arrayResizeIntArrayWithDef__decisions(arrQuestionChoiceCallbacks);
 
-        index = findIndexInt(arrGroupChoices, -1);
+        questionId = findIndexInt__decisions(arrQuestionChoices, -1);
     }
 
-    xsArraySetInt(arrGroupChoices, index, xsArrayCreateString(4, ""));
-    xsArraySetInt(arrGroupChoiceCallbacks, index, xsArrayCreateString(4, ""));
+    xsArraySetInt(arrQuestionChoices, questionId, xsArrayCreateString(4, ""));
+    xsArraySetInt(arrQuestionChoiceCallbacks, questionId, xsArrayCreateString(4, ""));
 
-    xsArraySetString(arrGroupQuestions, index, question);
-    xsArraySetString(arrGroupCallbacks, index, callback);
+    xsArraySetString(arrQuestionTexts, questionId, question);
+    xsArraySetString(arrQuestionCallbacks, questionId, callback);
 
-    return (index);
+    return (questionId);
 }
 
-void decisionSetChoice(int groupId = -1, string choice = "", string callback = "") {
-    if (groupId == -1) {
-        return;
+/**
+ * Add a choice to a question created by `decisionCreate(...)`. Choices are shown in the order they are added.
+ *
+ * The callback is the name of a function `void name(int answerArray = -1)` which is called only when this choice is made.
+ * If the question also has a callback, the question callback is called first.
+ * The callback functions MUST HAVE a single int argument, no more, no less!
+ *
+ * Note: Both questionId and choice are required arguments
+ *
+ * @allow_discard
+ */
+int decisionSetChoice(int questionId = -1, string choice = "", string callback = "") {
+    if (questionId == -1 || choice == "") {
+        return (-1);
     }
 
-    int choicesArray = xsArrayGetInt(arrGroupChoices, groupId);
-    int choiceCallbackArray = xsArrayGetInt(arrGroupChoiceCallbacks, groupId);
+    int choicesArray = xsArrayGetInt(arrQuestionChoices, questionId);
+    int choiceCallbackArray = xsArrayGetInt(arrQuestionChoiceCallbacks, questionId);
 
-    int index = findIndexString(choicesArray, "");
+    int choiceIndex = findIndexString__decisions(choicesArray, "");
 
-    if (index == -1) {
-        arrayResizeStringArrayWithDef(choicesArray);
-        arrayResizeStringArrayWithDef(choiceCallbackArray);
+    if (choiceIndex == -1) {
+        arrayResizeStringArrayWithDef__decisions(choicesArray);
+        arrayResizeStringArrayWithDef__decisions(choiceCallbackArray);
 
-        index = findIndexString(choicesArray, "");
+        choiceIndex = findIndexString__decisions(choicesArray, "");
     }
 
-    xsArraySetString(choicesArray, index, choice);
-    xsArraySetString(choiceCallbackArray, index, callback);
+    xsArraySetString(choicesArray, choiceIndex, choice);
+    xsArraySetString(choiceCallbackArray, choiceIndex, callback);
+
+    return (choiceIndex);
 }
 
+/**
+ * Create a new question with all choices at once. Returns the question ID which can be passed to `decisionAsk(...)`.
+ *
+ * Choices are separated by `|`. A choice callback can be added using `:::`, for example: "Yes:::onYes|No:::onNo"
+ * The callback is called when any choice is made (See `decisionCreate(...)`)
+ *
+ * Note: Choices cannot contain `|` or `:::`
+ */
 int decisionCreateWithChoices(string question = "", string pipeSeparatedChoices = "", string callback = "") {
     int choices = strSplit(pipeSeparatedChoices, "|");
 
     string choice = "";
     string choiceCallback = "";
 
-    int groupId = decisionCreate(question, callback);
+    int questionId = decisionCreate(question, callback);
     for (i = 0; < xsArrayGetSize(choices)) {
         choice = xsArrayGetString(choices, i);
         choiceCallback = "";
@@ -180,27 +244,34 @@ int decisionCreateWithChoices(string question = "", string pipeSeparatedChoices 
             choiceCallback = xsArrayGetString(choiceSegments, 1);
         }
 
-        decisionSetChoice(groupId, choice, choiceCallback);
+        decisionSetChoice(questionId, choice, choiceCallback);
     }
 
-    return (groupId);
+    return (questionId);
 }
 
-/** @allow_discard */
-int decisionAsk(int groupId = -1, int player = -1) {
-    if (groupId == -1) {
+/**
+ * Show a question to a player. Every 2 choices are shown as a separate decision, the question text is only shown on the first.
+ * Returns an answer array which can be used with `decisionWasMade(...)` and the other getters, or -1 if it failed.
+ *
+ * The same question can be asked to multiple players (or multiple times) at once, each ask is answered separately
+ *
+ * @allow_discard
+ */
+int decisionAsk(int questionId = -1, int player = -1) {
+    if (questionId == -1) {
         return (-1);
     }
 
-    string groupQuestion = xsArrayGetString(arrGroupQuestions, groupId);
+    string questionText = xsArrayGetString(arrQuestionTexts, questionId);
 
-    int choicesArray = xsArrayGetInt(arrGroupChoices, groupId);
-    int choiceCallbackArray = xsArrayGetInt(arrGroupChoiceCallbacks, groupId);
+    int choicesArray = xsArrayGetInt(arrQuestionChoices, questionId);
+    int choiceCallbackArray = xsArrayGetInt(arrQuestionChoiceCallbacks, questionId);
 
     int numberOfChoiceSlots = xsArrayGetSize(choicesArray);
 
     /* Fix the size of the array to the current  */
-    int actualChoiceCount = findIndexString(choicesArray, "");
+    int actualChoiceCount = findIndexString__decisions(choicesArray, "");
     if (actualChoiceCount == -1) {
         actualChoiceCount = xsArrayGetSize(choicesArray);
     }
@@ -216,15 +287,15 @@ int decisionAsk(int groupId = -1, int player = -1) {
     int answerArray = xsArrayCreateInt(3, -1);
 
     for (i = 0; < numberOfDecisions) {
-        int decisionId = findIndexInt(arrActiveDecisionsToGroupMap, -1);
+        int decisionId = findIndexInt__decisions(arrActiveDecisionsToQuestionMap, -1);
         if (decisionId == -1) {
             xsChatData(cColorRed + "[Fatal Error] Failed to create decision: No decision array slots remaining");
             return (-1);
         }
 
         string question = "";
-        if (i == 0 && groupQuestion != "") {
-            question = groupQuestion;
+        if (i == 0 && questionText != "") {
+            question = questionText;
         }
 
         string choice1 = xsArrayGetString(choicesArray, i * 2);
@@ -235,7 +306,7 @@ int decisionAsk(int groupId = -1, int player = -1) {
 
         xsCreateDecision(player, decisionId, question, choice1, choice2);
 
-        xsArraySetInt(arrActiveDecisionsToGroupMap, decisionId, groupId);
+        xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId, questionId);
         xsArraySetInt(arrActiveDecisionsToPlayerMap, decisionId, player);
         xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, decisionId, answerArray);
     }
@@ -243,14 +314,18 @@ int decisionAsk(int groupId = -1, int player = -1) {
     return (answerArray);
 }
 
-rule checkDecisionChoices
+/* #############################################################
+######################## INTERNAL RULES ########################
+############################################################# */
+
+rule checkDecisionChoices__decisions
     active
     minInterval 1
 {
-    int size = xsArrayGetSize(arrActiveDecisionsToGroupMap);
+    int size = xsArrayGetSize(arrActiveDecisionsToQuestionMap);
     for (decisionId = 0; < size) {
-        int groupId = xsArrayGetInt(arrActiveDecisionsToGroupMap, decisionId);
-        if (groupId == -1 || groupId >= cMarkForClear) {
+        int questionId = xsArrayGetInt(arrActiveDecisionsToQuestionMap, decisionId);
+        if (questionId == -1 || questionId >= cMarkForClear) {
             continue;
         }
 
@@ -261,38 +336,38 @@ rule checkDecisionChoices
             continue;
         }
 
-        /* Unique per decisionAsk call, so it identifies this specific ask (group + player) */
+        /* Unique per decisionAsk call, so it identifies this specific ask (question + player) */
         int answerArray = xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, decisionId);
 
-        int decisionsInGroup = 0;
+        int decisionsInQuestion = 0;
         int decisionOffset = 0;
         /* Find all decisions belonging to this ask and clear them in UI & Mark for clear in array */
         for (decisionId2 = 0; < size) {
-            int groupId2 = xsArrayGetInt(arrActiveDecisionsToGroupMap, decisionId2);
-            if (groupId2 == -1 || groupId2 >= cMarkForClear) {
+            int questionId2 = xsArrayGetInt(arrActiveDecisionsToQuestionMap, decisionId2);
+            if (questionId2 == -1 || questionId2 >= cMarkForClear) {
                 continue;
             }
 
-            /* Prevent the same question (Group) to multiple players from clearing eachother */
+            /* Prevent the same question to multiple players from clearing eachother */
             if (xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, decisionId2) != answerArray) {
                 continue;
             }
 
-            xsArraySetInt(arrActiveDecisionsToGroupMap, decisionId2, cMarkForClear);
+            xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId2, cMarkForClear);
 
             xsClearDecision(decisionId2);
 
             if (decisionId != decisionId2) {
-                decisionsInGroup++;
+                decisionsInQuestion++;
             } else {
-                decisionOffset = decisionsInGroup;
+                decisionOffset = decisionsInQuestion;
             }
         }
 
-        int choicesArray = xsArrayGetInt(arrGroupChoices, groupId);
-        int choiceCallbackArray = xsArrayGetInt(arrGroupChoiceCallbacks, groupId);
+        int choicesArray = xsArrayGetInt(arrQuestionChoices, questionId);
+        int choiceCallbackArray = xsArrayGetInt(arrQuestionChoiceCallbacks, questionId);
 
-        /* The amount of groups until the chosen choice was found * 2 (2 per decision) + (choice - 1) for 0 index */
+        /* The amount of decisions before the chosen one * 2 (2 per decision) + (choice - 1) for 0 index */
         int choiceIndex = (decisionOffset * 2) + (choice - 1);
 
         int numberOfChoices = xsArrayGetSize(choicesArray);
@@ -303,14 +378,14 @@ rule checkDecisionChoices
 
         string choiceCallback = xsArrayGetString(choiceCallbackArray, choiceIndex);
 
-        string groupCallback = xsArrayGetString(arrGroupCallbacks, groupId);
+        string questionCallback = xsArrayGetString(arrQuestionCallbacks, questionId);
 
-        xsArraySetInt(answerArray, 0, groupId);
+        xsArraySetInt(answerArray, 0, questionId);
         xsArraySetInt(answerArray, 1, choiceIndex);
         xsArraySetInt(answerArray, 2, player);
 
-        __callFunc(groupCallback, answerArray);
-        __callFunc(choiceCallback, answerArray);
+        callFunc__decisions(questionCallback, answerArray);
+        callFunc__decisions(choiceCallback, answerArray);
     }
 }
 
@@ -318,20 +393,20 @@ rule checkDecisionChoices
  * This ensures it takes a couple seconds before the same IDs can be re-used.
  * After clicking a choice, the game takes 3s to update the UI and remove it.
  */
-rule waitForPreviousCleared
+rule waitForPreviousCleared__decisions
     active
     minInterval 1
 {
-    int size = xsArrayGetSize(arrActiveDecisionsToGroupMap);
+    int size = xsArrayGetSize(arrActiveDecisionsToQuestionMap);
 
     for (decisionId = 0; < size) {
-        int groupId = xsArrayGetInt(arrActiveDecisionsToGroupMap, decisionId);
-        if (groupId < cMarkForClear) {
+        int questionId = xsArrayGetInt(arrActiveDecisionsToQuestionMap, decisionId);
+        if (questionId < cMarkForClear) {
             continue;
         }
 
-        if (groupId >= cReadyForDelete) {
-            xsArraySetInt(arrActiveDecisionsToGroupMap, decisionId, -1);
+        if (questionId >= cReadyForDelete) {
+            xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId, -1);
             xsArraySetInt(arrActiveDecisionsToPlayerMap, decisionId, -1);
             xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, decisionId, -1);
 
@@ -339,6 +414,10 @@ rule waitForPreviousCleared
         }
 
         /* Increase by one */
-        xsArraySetInt(arrActiveDecisionsToGroupMap, decisionId, groupId + 1);
+        xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId, questionId + 1);
     }
 }
+
+/* #############################################################
+############## END OF XS-DECISIONS ### By MrKirby ##############
+############################################################# */
