@@ -3,13 +3,28 @@
 A simple-to-use wrapper around the AoE2 XS Decisions API which adds support for more than two choices per question and 
 callbacks when choices are made! 
 
+> [!WARNING]
+> The XS Decisions API is currently only available in the **Public Update Preview (PUP)**.  
+> Tested on build `101.103.58865.0` (Update `189937`). It won't work on the live version of the game _yet_.
+
 This library has some major advantages over the native decisions API:
 
 1. Allows more than two choices per question
 2. Simple choice and question callback functionality 
 3. Easily re-use questions (in decision trees)
-4. Remembers answers after decision IDs are re-used
+4. Remembers answers after decision IDs are recycled
 5. Automatic decision ID management (No manual fiddling counters)
+
+**Contents:** 
+[Example](#example-usage) · 
+[Setup](#1-setting-up-the-script) · 
+[Questions](#2-create-the-questions) · 
+[Choices](#3-add-the-choices-to-the-question) · 
+[Answers](#4-working-with-answers) · 
+[Callbacks](#5-callback-functionality) · 
+[Behind the scenes](#6-behind-the-scenes) · 
+[Functions API](#functions-api) · 
+[License](#license)
 
 ## Example usage
 
@@ -417,3 +432,9 @@ Returns: `int` The ID of the question returned from `decisionCreate` functions f
 | `int` | `answerArray` | The array that was returned from a `decisionAsk` call, or from the only parameter inside a callback function | _Required_ |
 
 Returns: `int` The choice that was clicked as index for the choice on that question. Starting from 0.
+
+---
+
+# License
+
+XsDecisions is licensed under the [GNU General Public License v3.0](LICENSE).
