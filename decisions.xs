@@ -1,6 +1,6 @@
 /*
  * ##########################################################
- *    __  __      ____            _     _
+ *    __  __      ____
  *    \ \/ /___  |  _ \  ___  ___(_)___(_) ___  _ __  ___
  *     \  // __| | | | |/ _ \/ __| / __| |/ _ \| '_ \/ __|
  *     /  \\__ \ | |_| |  __/ (__| \__ \ | (_) | | | \__ \
@@ -22,9 +22,13 @@ int arrQuestionChoiceCallbacks = -1;
 int arrQuestionTexts = -1;
 int arrQuestionCallbacks = -1;
 
+int arrActiveDecisionIds = -1;
 int arrActiveDecisionsToQuestionMap = -1;
 int arrActiveDecisionsToPlayerMap = -1;
 int arrActiveDecisionsToAnswerArrayMap = -1;
+
+bool DECISION_LOGGING_ENABLED = false;
+
 int cMarkForClear = 999999996;
 int cReadyForDelete = 999999999;
 
@@ -39,7 +43,8 @@ void initializeDecisions__decisions() {
         return;
     }
 
-    int activeDecisionsSupportCount = 200;  /* Equal to the number of decisions visible at a time (8 players) */
+    int activeDecisionsSupportCount = 20;  /* Is expanded automatically */
+    arrActiveDecisionIds = xsArrayCreateInt(activeDecisionsSupportCount, -1);
     arrActiveDecisionsToQuestionMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
     arrActiveDecisionsToPlayerMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
     arrActiveDecisionsToAnswerArrayMap = xsArrayCreateInt(activeDecisionsSupportCount, -1);
@@ -51,7 +56,7 @@ void initializeDecisions__decisions() {
     arrQuestionChoiceCallbacks = xsArrayCreateInt(questionSupportCount, -1);
 }
 
-mutable int findIndexString__decisions(int arrayId = -1, string match = "") {
+mutable int findIndexString(int arrayId = -1, string match = "") {
     for(i = 0; < xsArrayGetSize(arrayId)) {
         if (xsArrayGetString(arrayId, i) == match) {
             return (i);
@@ -61,7 +66,7 @@ mutable int findIndexString__decisions(int arrayId = -1, string match = "") {
     return (-1);
 }
 
-mutable int findIndexInt__decisions(int arrayId = -1, int match = -1) {
+mutable int findIndexInt(int arrayId = -1, int match = -1) {
     for(i = 0; < xsArrayGetSize(arrayId)) {
         if (xsArrayGetInt(arrayId, i) == match) {
             return (i);
@@ -69,6 +74,18 @@ mutable int findIndexInt__decisions(int arrayId = -1, int match = -1) {
     }
 
     return (-1);
+}
+
+mutable bool isIntIn(int arrayId = -1, int match = -1) {
+    return (findIndexInt(arrayId, match) != -1);
+}
+
+mutable void log__decision(string str = "") {
+    if (DECISION_LOGGING_ENABLED == false) {
+        return;
+    }
+
+    xsChatData("[Decisions] " + str);
 }
 
 void arrayResizeIntArrayWithDef__decisions(int arr = -1, int def = -1) {
@@ -87,6 +104,31 @@ void arrayResizeStringArrayWithDef__decisions(int arr = -1, string def = "") {
     for (i = oldSize; < oldSize * 2) {
         xsArraySetString(arr, i, def);
     }
+}
+
+/**
+ * Check if any decision of an ask was clicked, including clicks not yet processed by `checkDecisionChoices__decisions`.
+ * The IDs of answered decisions must not be freed early, as this bugs the game.
+ */
+bool isAnswered__decisions(int answerArray = -1) {
+    int size = xsArrayGetSize(arrActiveDecisionIds);
+    for (i = 0; < size) {
+        if (xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, i) != answerArray) {
+            continue;
+        }
+
+        /* Answered and waiting for the game to remove it */
+        if (xsArrayGetInt(arrActiveDecisionsToQuestionMap, i) >= cMarkForClear) {
+            return (true);
+        }
+
+        /* Answered, but not yet processed */
+        if (xsGetDecisionChoice(xsArrayGetInt(arrActiveDecisionIds, i)) != cChoicePending) {
+            return (true);
+        }
+    }
+
+    return (false);
 }
 
 void callFunc__decisions(string callable = "", int arg = -1) {
@@ -167,14 +209,14 @@ int decisionGetChoiceIndex(int answerArray = -1) {
 int decisionCreate(string question = "", string callback = "") {
     initializeDecisions__decisions();
 
-    int questionId = findIndexInt__decisions(arrQuestionChoices, -1);
+    int questionId = findIndexInt(arrQuestionChoices, -1);
     if (questionId == -1) {
         arrayResizeStringArrayWithDef__decisions(arrQuestionTexts);
         arrayResizeStringArrayWithDef__decisions(arrQuestionCallbacks);
         arrayResizeIntArrayWithDef__decisions(arrQuestionChoices);
         arrayResizeIntArrayWithDef__decisions(arrQuestionChoiceCallbacks);
 
-        questionId = findIndexInt__decisions(arrQuestionChoices, -1);
+        questionId = findIndexInt(arrQuestionChoices, -1);
     }
 
     xsArraySetInt(arrQuestionChoices, questionId, xsArrayCreateString(4, ""));
@@ -182,6 +224,8 @@ int decisionCreate(string question = "", string callback = "") {
 
     xsArraySetString(arrQuestionTexts, questionId, question);
     xsArraySetString(arrQuestionCallbacks, questionId, callback);
+
+    log__decision("Created question " + questionId + ": '" + question + "' (callback: '" + callback + "')");
 
     return (questionId);
 }
@@ -206,17 +250,19 @@ int decisionAddChoice(int questionId = -1, string choice = "", string callback =
     int choicesArray = xsArrayGetInt(arrQuestionChoices, questionId);
     int choiceCallbackArray = xsArrayGetInt(arrQuestionChoiceCallbacks, questionId);
 
-    int choiceIndex = findIndexString__decisions(choicesArray, "");
+    int choiceIndex = findIndexString(choicesArray, "");
 
     if (choiceIndex == -1) {
         arrayResizeStringArrayWithDef__decisions(choicesArray);
         arrayResizeStringArrayWithDef__decisions(choiceCallbackArray);
 
-        choiceIndex = findIndexString__decisions(choicesArray, "");
+        choiceIndex = findIndexString(choicesArray, "");
     }
 
     xsArraySetString(choicesArray, choiceIndex, choice);
     xsArraySetString(choiceCallbackArray, choiceIndex, callback);
+
+    log__decision("Added choice " + choiceIndex + " to question " + questionId + ": '" + choice + "' (callback: '" + callback + "')");
 
     return (choiceIndex);
 }
@@ -275,7 +321,7 @@ int decisionAsk(int questionId = -1, int player = -1) {
     int numberOfChoiceSlots = xsArrayGetSize(choicesArray);
 
     /* Fix the size of the array to the current  */
-    int actualChoiceCount = findIndexString__decisions(choicesArray, "");
+    int actualChoiceCount = findIndexString(choicesArray, "");
     if (actualChoiceCount == -1) {
         actualChoiceCount = xsArrayGetSize(choicesArray);
     }
@@ -288,13 +334,33 @@ int decisionAsk(int questionId = -1, int player = -1) {
     int size = xsArrayGetSize(choicesArray);
     int numberOfDecisions = xsCeilToInt((0.0 + size) / 2);
 
+    /* Find the first range of consecutive Decision IDs which are not in use */
+    int decisionStartId = 0;
+    int consecEmpty = 0;  /* Consecutive Empty IDs */
+    while (consecEmpty < numberOfDecisions) {
+        if (isIntIn(arrActiveDecisionIds, decisionStartId + consecEmpty)) {
+            decisionStartId = decisionStartId + consecEmpty + 1;
+            consecEmpty = 0;
+        } else {
+            consecEmpty++;
+        }
+    }
+
+    log__decision("Asking question " + questionId + " to player " + player + " using decision IDs " + decisionStartId + "-" + (decisionStartId + numberOfDecisions - 1));
+
     int answerArray = xsArrayCreateInt(3, -1);
 
     for (i = 0; < numberOfDecisions) {
-        int decisionId = findIndexInt__decisions(arrActiveDecisionsToQuestionMap, -1);
-        if (decisionId == -1) {
-            xsChatData(cColorRed + "[Fatal Error] Failed to create decision: No decision array slots remaining");
-            return (-1);
+        int decisionId = decisionStartId + i;
+
+        int arrIndex = findIndexInt(arrActiveDecisionIds, -1);
+        if (arrIndex == -1) {
+            arrayResizeIntArrayWithDef__decisions(arrActiveDecisionIds);
+            arrayResizeIntArrayWithDef__decisions(arrActiveDecisionsToQuestionMap);
+            arrayResizeIntArrayWithDef__decisions(arrActiveDecisionsToPlayerMap);
+            arrayResizeIntArrayWithDef__decisions(arrActiveDecisionsToAnswerArrayMap);
+
+            arrIndex = findIndexInt(arrActiveDecisionIds, -1);
         }
 
         string question = "";
@@ -310,12 +376,51 @@ int decisionAsk(int questionId = -1, int player = -1) {
 
         xsCreateDecision(player, decisionId, question, choice1, choice2);
 
-        xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId, questionId);
-        xsArraySetInt(arrActiveDecisionsToPlayerMap, decisionId, player);
-        xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, decisionId, answerArray);
+        xsArraySetInt(arrActiveDecisionIds, arrIndex, decisionId);
+        xsArraySetInt(arrActiveDecisionsToQuestionMap, arrIndex, questionId);
+        xsArraySetInt(arrActiveDecisionsToPlayerMap, arrIndex, player);
+        xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, arrIndex, answerArray);
     }
 
     return (answerArray);
+}
+
+/**
+ * Remove a pending question from the player's screen. Can be called on the returning int from `decisionAsk(...)`
+ * Returns true if the question was cleared, false if there was nothing to clear.
+ *
+ * Questions that were already answered cannot be cleared, they are removed automatically.
+ * After clearing, no callbacks are called and `decisionWasMade(...)` remains false.
+ *
+ * @allow_discard
+ */
+bool decisionClear(int answerArray = -1) {
+    if (answerArray == -1 || isAnswered__decisions(answerArray)) {
+        return (false);
+    }
+
+    bool cleared = false;
+    int size = xsArrayGetSize(arrActiveDecisionIds);
+    for (i = 0; < size) {
+        if (xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, i) != answerArray) {
+            continue;
+        }
+
+        xsClearDecision(xsArrayGetInt(arrActiveDecisionIds, i));
+
+        xsArraySetInt(arrActiveDecisionIds, i, -1);
+        xsArraySetInt(arrActiveDecisionsToQuestionMap, i, -1);
+        xsArraySetInt(arrActiveDecisionsToPlayerMap, i, -1);
+        xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, i, -1);
+
+        cleared = true;
+    }
+
+    if (cleared) {
+        log__decision("Cleared answer array " + answerArray);
+    }
+
+    return (cleared);
 }
 
 /* #############################################################
@@ -326,14 +431,20 @@ rule checkDecisionChoices__decisions
     active
     minInterval 1
 {
-    int size = xsArrayGetSize(arrActiveDecisionsToQuestionMap);
-    for (decisionId = 0; < size) {
-        int questionId = xsArrayGetInt(arrActiveDecisionsToQuestionMap, decisionId);
+    int size = xsArrayGetSize(arrActiveDecisionIds);
+    int decisionId = -1;
+    for (i = 0; < size) {
+        decisionId = xsArrayGetInt(arrActiveDecisionIds, i);
+        if (decisionId == -1) {
+            continue;
+        }
+
+        int questionId = xsArrayGetInt(arrActiveDecisionsToQuestionMap, i);
         if (questionId == -1 || questionId >= cMarkForClear) {
             continue;
         }
 
-        int player  = xsArrayGetInt(arrActiveDecisionsToPlayerMap, decisionId);
+        int player  = xsArrayGetInt(arrActiveDecisionsToPlayerMap, i);
 
         int choice = xsGetDecisionChoice(decisionId);
         if (choice == cChoicePending) {
@@ -341,23 +452,28 @@ rule checkDecisionChoices__decisions
         }
 
         /* Unique per decisionAsk call, so it identifies this specific ask (question + player) */
-        int answerArray = xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, decisionId);
+        int answerArray = xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, i);
 
         int decisionsInQuestion = 0;
         int decisionOffset = 0;
         /* Find all decisions belonging to this ask and clear them in UI & Mark for clear in array */
-        for (decisionId2 = 0; < size) {
-            int questionId2 = xsArrayGetInt(arrActiveDecisionsToQuestionMap, decisionId2);
+        for (j = 0; < size) {
+            int decisionId2 = xsArrayGetInt(arrActiveDecisionIds, j);
+            if (decisionId2 == -1) {
+                continue;
+            }
+
+            int questionId2 = xsArrayGetInt(arrActiveDecisionsToQuestionMap, j);
             if (questionId2 == -1 || questionId2 >= cMarkForClear) {
                 continue;
             }
 
             /* Prevent the same question to multiple players from clearing eachother */
-            if (xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, decisionId2) != answerArray) {
+            if (xsArrayGetInt(arrActiveDecisionsToAnswerArrayMap, j) != answerArray) {
                 continue;
             }
 
-            xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId2, cMarkForClear);
+            xsArraySetInt(arrActiveDecisionsToQuestionMap, j, cMarkForClear);
 
             xsClearDecision(decisionId2);
 
@@ -388,6 +504,8 @@ rule checkDecisionChoices__decisions
         xsArraySetInt(answerArray, 1, choiceIndex);
         xsArraySetInt(answerArray, 2, player);
 
+        log__decision("Player " + player + " chose '" + xsArrayGetString(choicesArray, choiceIndex) + "' (index " + choiceIndex + ") for question " + questionId);
+
         callFunc__decisions(questionCallback, answerArray);
         callFunc__decisions(choiceCallback, answerArray);
     }
@@ -402,23 +520,25 @@ rule waitForPreviousCleared__decisions
     minInterval 1
 {
     int size = xsArrayGetSize(arrActiveDecisionsToQuestionMap);
-
-    for (decisionId = 0; < size) {
-        int questionId = xsArrayGetInt(arrActiveDecisionsToQuestionMap, decisionId);
+    for (i = 0; < size) {
+        int questionId = xsArrayGetInt(arrActiveDecisionsToQuestionMap, i);
         if (questionId < cMarkForClear) {
             continue;
         }
 
         if (questionId >= cReadyForDelete) {
-            xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId, -1);
-            xsArraySetInt(arrActiveDecisionsToPlayerMap, decisionId, -1);
-            xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, decisionId, -1);
+            log__decision("Decision ID " + xsArrayGetInt(arrActiveDecisionIds, i) + " released (slot " + i + ")");
+
+            xsArraySetInt(arrActiveDecisionIds, i, -1);
+            xsArraySetInt(arrActiveDecisionsToQuestionMap, i, -1);
+            xsArraySetInt(arrActiveDecisionsToPlayerMap, i, -1);
+            xsArraySetInt(arrActiveDecisionsToAnswerArrayMap, i, -1);
 
             continue;
         }
 
         /* Increase by one */
-        xsArraySetInt(arrActiveDecisionsToQuestionMap, decisionId, questionId + 1);
+        xsArraySetInt(arrActiveDecisionsToQuestionMap, i, questionId + 1);
     }
 }
 

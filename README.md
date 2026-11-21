@@ -233,6 +233,34 @@ rule hasAnswered active minInterval 1 {
 }
 ```
 
+### 4.4 Clearing a question
+
+A question that hasn't been answered yet can be removed with `decisionClear(...)`, using the value returned by 
+`decisionAsk(...)`. When a question is cleared, no callbacks are called and `decisionWasMade(...)` stays `false`.
+
+`decisionClear(...)` returns `true` when the question was cleared. It returns `false` when there was nothing to 
+clear, for example because the player already answered it (even if that was just a moment ago). 
+This makes it easy to add a time limit with a default choice:
+
+```cpp
+int a1 = -1;
+
+void main() {
+    int q1 = decisionCreateWithChoices("Accept treaty? (10 seconds)", "Yes|No");
+    a1 = decisionAsk(q1, 1);
+
+    xsEnableRule("treatyTimeLimit");
+}
+
+rule treatyTimeLimit inactive minInterval 10 {
+    xsDisableSelf();
+
+    if (decisionClear(a1)) {
+        xsChatData("Time's up! The treaty was refused.");
+    }
+}
+```
+
 ## 5. Callback functionality
 
 ### 5.1 Writing a callback
@@ -314,7 +342,9 @@ The AoE2 XS Decisions API only supports **two** choices per decision.
 XsDecisions works around this by splitting a question into multiple decisions:
 
 1. **Asking:** `decisionAsk(...)` splits the choices into pairs and creates one decision per pair. 
-   The question text is only shown on the first one. A 5-choice question therefore shows 3 decisions.
+   The question text is only shown on the first one. A 5-choice question therefore shows 3 decisions. 
+   These decisions always get consecutive decision IDs, so they are shown together. If a gap between used IDs is too 
+   small, it is skipped.
 2. **Tracking:** Every ask gets its own "answer array", which is returned by `decisionAsk(...)`. 
    All decisions of that ask are linked to it, so the same question can be asked to multiple players at once.
 3. **Answering:** A rule checks all active decisions every second. Once one is clicked, all other decisions of that ask
@@ -322,6 +352,8 @@ XsDecisions works around this by splitting a question into multiple decisions:
 4. **Callbacks:** The question callback is called, followed by the choice callback, both with the answer array.
 5. **Cleaning up:** After clicking, the game keeps showing the decision for about 3 seconds. 
    The decision IDs are only re-used after that, so new decisions don't conflict with old ones.
+6. **Clearing:** `decisionClear(...)` removes the decisions and frees their IDs immediately, as there is no delay when
+   nothing was clicked.
 
 ---
 
@@ -380,6 +412,18 @@ Ask a question to a specific player.
 | `int` | `player`     | The player to ask the question to.                               | _Required_ |
 
 Returns: `int` Reference to the `answerArray` which will be populated once a choice has been made
+
+---
+
+## `decisionClear(answerArray)`
+
+Removes a question that has not been answered yet. No callbacks are called.
+
+| Type  | Argument      | Description                                           | Required   |
+|-------|---------------|-------------------------------------------------------|------------|
+| `int` | `answerArray` | The array that was returned from a `decisionAsk` call | _Required_ |
+
+Returns: `bool` `true` if the question was cleared, `false` if there was nothing to clear (e.g. already answered)
 
 ---
 
